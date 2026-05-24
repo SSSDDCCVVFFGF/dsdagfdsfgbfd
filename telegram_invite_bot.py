@@ -74,31 +74,30 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "DEIN_BOT_TOKEN")
 # Google Authenticator Secret – als Railway Variable setzen: TOTP_SECRET
 TOTP_SECRET = os.environ.get("TOTP_SECRET", "")
 
-GROUP_A_ID = "-1001234567891"
-GROUP_B_ID = "-1001234567891"
-GROUP_C_ID = "-1001234567891"
+GROUP_A_ID = os.environ.get("GROUP_A_ID", "-1001234567891")
+GROUP_B_ID = os.environ.get("GROUP_B_ID", "-1001234567891")
+GROUP_C_ID = os.environ.get("GROUP_C_ID", "-1001234567891")
 
 # ── Gruppennamen – nur hier anpassen! ──
-GROUP_A_NAME = "GROUP_A_NAME"
-GROUP_B_NAME = "GROUP_B_NAME"
-GROUP_C_NAME = "GROUP_C_NAME"
+GROUP_A_NAME = os.environ.get("GROUP_A_NAME", "GROUP_A_NAME")
+GROUP_B_NAME = os.environ.get("GROUP_B_NAME", "GROUP_B_NAME")
+GROUP_C_NAME = os.environ.get("GROUP_C_NAME", "GROUP_C_NAME")
 
-ADMIN_ID = 5555555555
+ADMIN_ID = int(os.environ.get("ADMIN_ID", "5555555555"))
 
+# Kommagetrennte IDs: z.B. "111111111,222222222"
 MODERATOR_IDS: list[int] = [
-    111111111,
-    222222222,
+    int(x.strip()) for x in os.environ.get("MODERATOR_IDS", "111111111,222222222").split(",") if x.strip()
 ]
 
 SUPERMOD_IDS: list[int] = [
-    333333333,
-    444444444,
+    int(x.strip()) for x in os.environ.get("SUPERMOD_IDS", "333333333,444444444").split(",") if x.strip()
 ]
 
-# Hier können benötigte invites variiert werden 
-JOIN_THRESHOLD_B = 3
-JOIN_THRESHOLD_C = 10
-LEAVE_THRESHOLD = 2
+# Hier können benötigte invites variiert werden (auch per Railway-Variable setzbar)
+JOIN_THRESHOLD_B = int(os.environ.get("JOIN_THRESHOLD_B", "3"))
+JOIN_THRESHOLD_C = int(os.environ.get("JOIN_THRESHOLD_C", "10"))
+LEAVE_THRESHOLD = int(os.environ.get("LEAVE_THRESHOLD", "2"))
 
 WELCOME_MESSAGE = (
     "👋 Willkommen bei *" + GROUP_A_NAME + "*, {name}!\n\n"
@@ -1435,6 +1434,74 @@ async def handle_kick_creator(context, link_str, data):
 
 
 # ──────────────────────────────────────────────
+#  /set – Schwellenwerte zur Laufzeit ändern (nur Admin)
+#  Nutzung:
+#    /set joinb 5      → JOIN_THRESHOLD_B = 5
+#    /set joinc 15     → JOIN_THRESHOLD_C = 15
+#    /set leaves 3     → LEAVE_THRESHOLD = 3
+# ──────────────────────────────────────────────
+async def set_threshold(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    global JOIN_THRESHOLD_B, JOIN_THRESHOLD_C, LEAVE_THRESHOLD
+    user = update.effective_user
+
+    if not is_admin(user.id):
+        await update.message.reply_text("❌ Nur der Admin kann /set nutzen.")
+        return
+
+    # Kein Argument → aktuellen Stand anzeigen
+    if not context.args or len(context.args) < 2:
+        await update.message.reply_text(
+            "⚙️ *Aktuelle Schwellenwerte:*\n\n"
+            f"┣ `joinb`  → *{JOIN_THRESHOLD_B}* Einladungen für {GROUP_B_NAME}\n"
+            f"┣ `joinc`  → *{JOIN_THRESHOLD_C}* Einladungen für {GROUP_C_NAME}\n"
+            f"┗ `leaves` → *{LEAVE_THRESHOLD}* Austritte bis Kick\n\n"
+            "📝 *Nutzung:*\n"
+            "`/set joinb 5` – Einladungen für Gruppe B\n"
+            "`/set joinc 15` – Einladungen für Gruppe C\n"
+            "`/set leaves 3` – Austritte bis Kick",
+            parse_mode="Markdown"
+        )
+        return
+
+    key = context.args[0].lower()
+    raw = context.args[1]
+
+    if not raw.isdigit() or int(raw) < 1:
+        await update.message.reply_text("❌ Bitte eine positive Zahl angeben.")
+        return
+
+    value = int(raw)
+
+    if key == "joinb":
+        JOIN_THRESHOLD_B = value
+        await update.message.reply_text(
+            f"✅ *JOIN_THRESHOLD_B* auf *{value}* gesetzt.\n\n"
+            f"Nutzer brauchen jetzt *{value} Einladungen* für {GROUP_B_NAME}.",
+            parse_mode="Markdown"
+        )
+    elif key == "joinc":
+        JOIN_THRESHOLD_C = value
+        await update.message.reply_text(
+            f"✅ *JOIN_THRESHOLD_C* auf *{value}* gesetzt.\n\n"
+            f"Nutzer brauchen jetzt *{value} Einladungen* für {GROUP_C_NAME}.",
+            parse_mode="Markdown"
+        )
+    elif key == "leaves":
+        LEAVE_THRESHOLD = value
+        await update.message.reply_text(
+            f"✅ *LEAVE_THRESHOLD* auf *{value}* gesetzt.\n\n"
+            f"Nutzer werden bei *{value} Austritten* gekickt.",
+            parse_mode="Markdown"
+        )
+    else:
+        await update.message.reply_text(
+            "❌ Unbekannter Schlüssel.\n\n"
+            "Gültige Schlüssel: `joinb`, `joinc`, `leaves`",
+            parse_mode="Markdown"
+        )
+
+
+# ──────────────────────────────────────────────
 #  /closebot / /openbot
 # ──────────────────────────────────────────────
 async def closebot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1551,6 +1618,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             "┣ /returnall — Links wiederherstellen\n"
             "┣ /free — Freie Einladungslinks\n"
             "┣ /message — Nachricht in Gruppe senden\n"
+            "┣ /set — Schwellenwerte anpassen\n"
             "┣ /closebot — Bot fuer alle sperren\n"
             "┗ /openbot — Bot wieder oeffnen\n"
         )
@@ -1745,6 +1813,7 @@ async def main() -> None:
     app.add_handler(CommandHandler("see", see_stats))
     app.add_handler(CommandHandler("free", free_links))
     app.add_handler(CommandHandler("global", global_message))
+    app.add_handler(CommandHandler("set", set_threshold))
     app.add_handler(CommandHandler("closebot", closebot))
     app.add_handler(CommandHandler("openbot", openbot))
     app.add_handler(CommandHandler("status", status))
