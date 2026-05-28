@@ -1385,7 +1385,7 @@ async def track_join(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     joined = old_status in ("left", "kicked") and new_status == "member"
     left = old_status == "member" and new_status in ("left", "kicked")
     if joined:
-        try: await context.bot.send_message(chat_id=GROUP_A_ID, text=WELCOME_MESSAGE.format(name=new_member.first_name or "dort"), parse_mode="Markdown")
+        try: await context.bot.send_message(chat_id=new_member.id, text=WELCOME_MESSAGE.format(name=new_member.first_name or "dort"), parse_mode="Markdown")
         except: pass
     invite_link = result.invite_link
     if not invite_link: return
