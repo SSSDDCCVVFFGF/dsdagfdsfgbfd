@@ -1906,4 +1906,4 @@ async def run_with_watchdog():
 
 
 if __name__ == "__main__":
-    asyncio.run(run_with_watchdog())"""
+    asyncio.run(run_with_watchdog())
